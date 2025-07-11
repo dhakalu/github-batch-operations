@@ -66,6 +66,36 @@ type GitHubClient interface {
 	//   - []*IssueStats: Slice of issue statistics for each matching repository
 	//   - error: Any error encountered during repository discovery (individual repo errors are logged)
 	GetIssueStatsForReposWithPrefix(ctx context.Context, owner, prefix string, isUser bool) ([]*IssueStats, error)
+
+	// CreateOrUpdateFile creates or updates a file in a repository
+	//
+	// Parameters:
+	//   - ctx: Context for cancellation and timeout control
+	//   - owner: GitHub organization or username
+	//   - repoName: Name of the repository
+	//   - filePath: Path to the file within the repository (e.g., ".github/CODEOWNERS")
+	//   - content: Content of the file
+	//   - commitMessage: Commit message for the file change
+	//
+	// Returns:
+	//   - error: Any error encountered during the file creation/update
+	CreateOrUpdateFile(ctx context.Context, owner, repoName, filePath, content, commitMessage string) error
+
+	// AddCodeownersToReposWithPrefix adds a CODEOWNERS file to all repositories
+	// for an owner (organization or user) that match the specified prefix.
+	//
+	// Parameters:
+	//   - ctx: Context for cancellation and timeout control
+	//   - owner: GitHub organization or username
+	//   - prefix: Repository name prefix to filter by (empty string matches all)
+	//   - isUser: true if owner is a user, false if it's an organization
+	//   - codeownersContent: Content of the CODEOWNERS file
+	//
+	// Returns:
+	//   - []string: Slice of repository names that were successfully updated
+	//   - []string: Slice of repository names that failed to update
+	//   - error: Any error encountered during repository discovery
+	AddCodeownersToReposWithPrefix(ctx context.Context, owner, prefix string, isUser bool, codeownersContent string) ([]string, []string, error)
 }
 
 // gitHubService is the concrete implementation of GitHubClient
@@ -266,4 +296,93 @@ func (s *gitHubService) GetIssueStatsForReposWithPrefix(ctx context.Context, own
 	}
 
 	return allStats, nil
+}
+
+// CreateOrUpdateFile creates or updates a file in a repository
+func (s *gitHubService) CreateOrUpdateFile(ctx context.Context, owner, repoName, filePath, content, commitMessage string) error {
+	s.log.Info("Creating or updating file", "owner", owner, "repo", repoName, "file", filePath)
+
+	// Get the current file to check if it exists and get its SHA
+	fileContent, _, resp, err := s.client.Repositories.GetContents(ctx, owner, repoName, filePath, nil)
+
+	var sha *string
+	if err != nil {
+		// Check if error is 404 (file doesn't exist)
+		if resp != nil && resp.StatusCode == 404 {
+			// File doesn't exist, we'll create it (sha remains nil)
+			s.log.Info("File doesn't exist, will create new file", "file", filePath)
+		} else {
+			return fmt.Errorf("failed to check if file exists %s/%s:%s: %w", owner, repoName, filePath, err)
+		}
+	} else {
+		// File exists, get its SHA for updating
+		sha = fileContent.SHA
+		s.log.Info("File exists, will update existing file", "file", filePath, "sha", *sha)
+	}
+
+	// Create the file update options
+	opts := &github.RepositoryContentFileOptions{
+		Message: github.String(commitMessage),
+		Content: []byte(content),
+		SHA:     sha, // nil for new files, existing SHA for updates
+	}
+
+	// Create or update the file
+	_, _, err = s.client.Repositories.CreateFile(ctx, owner, repoName, filePath, opts)
+	if err != nil {
+		return fmt.Errorf("failed to create/update file %s/%s:%s: %w", owner, repoName, filePath, err)
+	}
+
+	s.log.Info("Successfully created/updated file", "owner", owner, "repo", repoName, "file", filePath)
+	return nil
+}
+
+// AddCodeownersToReposWithPrefix adds a CODEOWNERS file to all repositories matching a prefix
+func (s *gitHubService) AddCodeownersToReposWithPrefix(ctx context.Context, owner, prefix string, isUser bool, codeownersContent string) ([]string, []string, error) {
+	repos, err := s.GetRepositoriesWithPrefix(ctx, owner, prefix, isUser)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(repos) == 0 {
+		s.log.Info("No repositories found with prefix", "prefix", prefix)
+		return nil, nil, nil
+	}
+
+	s.log.Info("Found repositories with prefix", "count", len(repos), "prefix", prefix)
+
+	var successRepos []string
+	var failedRepos []string
+
+	successChan := make(chan string, len(repos))
+	failChan := make(chan string, len(repos))
+	sem := make(chan struct{}, s.maxConcurrency) // Limit concurrency
+
+	for _, repo := range repos {
+		sem <- struct{}{}
+		go func(repoName string) {
+			defer func() { <-sem }()
+
+			commitMessage := "Add/Update CODEOWNERS file"
+			err := s.CreateOrUpdateFile(ctx, owner, repoName, ".github/CODEOWNERS", codeownersContent, commitMessage)
+			if err != nil {
+				s.log.Error("Failed to add CODEOWNERS to repository", "owner", owner, "repo", repoName, "error", err)
+				failChan <- repoName
+				return
+			}
+			successChan <- repoName
+		}(repo.GetName())
+	}
+
+	// Collect results
+	for i := 0; i < len(repos); i++ {
+		select {
+		case repoName := <-successChan:
+			successRepos = append(successRepos, repoName)
+		case repoName := <-failChan:
+			failedRepos = append(failedRepos, repoName)
+		}
+	}
+
+	return successRepos, failedRepos, nil
 }

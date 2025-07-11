@@ -1,0 +1,32 @@
+# CODEOWNERS file
+# Global code owners
+* @team-leads @senior-developers
+
+# Frontend code owners
+/frontend/ @frontend-team
+*.js @frontend-team
+*.ts @frontend-team
+*.jsx @frontend-team
+*.tsx @frontend-team
+
+# Backend code owners
+/backend/ @backend-team
+*.go @backend-team
+*.py @backend-team
+
+# DevOps and infrastructure
+/docker/ @devops-team
+/k8s/ @devops-team
+/terraform/ @devops-team
+Dockerfile @devops-team
+*.yml @devops-team
+*.yaml @devops-team
+
+# Documentation
+*.md @documentation-team
+/docs/ @documentation-team
+
+# Configuration files
+*.json @senior-developers
+*.toml @senior-developers
+*.env* @senior-developers

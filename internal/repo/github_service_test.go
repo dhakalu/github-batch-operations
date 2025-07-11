@@ -543,6 +543,35 @@ func (m *mockGitHubService) GetIssueStatsForReposWithPrefix(ctx context.Context,
 	}, nil
 }
 
+func (m *mockGitHubService) CreateOrUpdateFile(ctx context.Context, owner, repoName, filePath, content, commitMessage string) error {
+	if m.shouldError {
+		return errors.New(m.errorMsg)
+	}
+	return nil
+}
+
+func (m *mockGitHubService) AddCodeownersToReposWithPrefix(ctx context.Context, owner, prefix string, isUser bool, codeownersContent string) ([]string, []string, error) {
+	if m.shouldError {
+		return nil, nil, errors.New(m.errorMsg)
+	}
+
+	repos, err := m.GetRepositoriesWithPrefix(ctx, owner, prefix, isUser)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(repos) == 0 {
+		return nil, nil, nil
+	}
+
+	var successRepos []string
+	for _, repo := range repos {
+		successRepos = append(successRepos, repo.GetName())
+	}
+
+	return successRepos, nil, nil
+}
+
 // Benchmark tests
 func BenchmarkIssueStatsProcessing(b *testing.B) {
 	issues := make([]*github.Issue, 1000)
