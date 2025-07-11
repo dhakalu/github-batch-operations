@@ -36,13 +36,18 @@ jobs:
     - name: 🧪 Run Tests
       run: go test -v -race -coverprofile=coverage.out ./...
       
-    - name: 📊 Upload Coverage
+    - name: 📈 Display Coverage
+      run: go tool cover -func=coverage.out
+
+    - name: 📊 Upload Coverage (Optional)
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.out
         flags: unittests
         name: codecov-umbrella
+        token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false
+      continue-on-error: true
 
   lint:
     name: 🔍 Code Quality Check
