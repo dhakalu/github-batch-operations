@@ -1,0 +1,138 @@
+name: 🚀 CI Pipeline
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: 🧪 Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: 📦 Cache Go Modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: 🔄 Download Dependencies
+      run: go mod download
+      
+    - name: 🧪 Run Tests
+      run: go test -v -race -coverprofile=coverage.out ./...
+      
+    - name: 📊 Upload Coverage
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  lint:
+    name: 🔍 Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: 📦 Cache Go Modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: 🔄 Download Dependencies
+      run: go mod download
+      
+    - name: 🔍 Run Linter
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=5m
+
+  build:
+    name: 🏗️ Build Application
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: 📦 Cache Go Modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: 🔄 Download Dependencies
+      run: go mod download
+      
+    - name: 🏗️ Build Binary
+      run: |
+        go build -v -o go-repo-manager ./cmd/main.go
+        
+    - name: ✅ Verify Binary
+      run: |
+        ./go-repo-manager --version || echo "Version flag not implemented yet"
+        ./go-repo-manager --help
+        
+    - name: 📤 Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: go-repo-manager-${{ github.sha }}
+        path: go-repo-manager
+        retention-days: 7
+
+  release-check:
+    name: 🚀 Release Readiness
+    runs-on: ubuntu-latest
+    needs: [test, lint, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🎯 Check Release Readiness
+      run: |
+        echo "🎉 All checks passed! Ready for release."
+        echo "✅ Tests passed"
+        echo "✅ Linting passed" 
+        echo "✅ Build successful"
+        echo "🚀 Main branch is ready for deployment!"
