@@ -83,10 +83,15 @@ func NewGitHubService(client *github.Client) GitHubClient {
 // The maxConcurrency parameter controls how many repositories can be processed concurrently
 func NewGitHubServiceWithConcurrency(client *github.Client, maxConcurrency int) GitHubClient {
 	log := logger.GetLogger()
+	return NewGitHubServiceWithLogger(client, maxConcurrency, log)
+}
 
+// NewGitHubServiceWithLogger creates a new GitHub service instance with configurable concurrency and logger
+// This constructor is primarily used for testing to inject a custom logger
+func NewGitHubServiceWithLogger(client *github.Client, maxConcurrency int, log *slog.Logger) GitHubClient {
 	if maxConcurrency <= 0 {
-		log.Warn("Invalid maxConcurrency value, using default", "provided", maxConcurrency, "default", 1)
-		maxConcurrency = 1
+		log.Warn("Invalid maxConcurrency value, using default", "provided", maxConcurrency, "default", 10)
+		maxConcurrency = 10
 	}
 
 	return &gitHubService{
