@@ -53,8 +53,7 @@ linters:
 
   # Remove deprecated linters
   disable:
-    - exportloopref   # Replaced by copyloopvar
-    - golint          # Deprecated, replaced by revive
+    # Note: exportloopref and golint are automatically disabled as they are deprecated
 
 linters-settings:
   gocyclo:
@@ -89,6 +88,13 @@ linters-settings:
       - "ok"
       - "w"
       - "r"
+  
+  gci:
+    sections:
+      - standard                           # Standard library packages
+      - default                            # Third-party packages
+      - prefix(go-repo-manager)           # Local packages
+    skip-generated: true
   
   errcheck:
     exclude-functions:

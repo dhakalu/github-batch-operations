@@ -8,10 +8,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"go-repo-manager/internal/logger"
 	"go-repo-manager/internal/repo"
+)
 
-	"github.com/spf13/cobra"
+const (
+	// Formatting constants.
+	shortSeparatorLength = 50
+	longSeparatorLength  = 70
 )
 
 func newCodeownersCmd() *cobra.Command {
@@ -30,69 +36,7 @@ func newCodeownersCmd() *cobra.Command {
 		Short: "Add or update CODEOWNERS file in repositories",
 		Long:  "Add or update CODEOWNERS file in specified repositories, repositories with a given prefix, or all repositories in an organization or user account",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log := logger.GetLogger()
-
-			// Validate input - must have either org or username, but not both
-			if org == "" && username == "" {
-				return fmt.Errorf("either organization (--org) or username (--username) is required")
-			}
-
-			if org != "" && username != "" {
-				return fmt.Errorf("cannot specify both --org and --username")
-			}
-
-			if repoName != "" && repoPrefix != "" {
-				return fmt.Errorf("cannot specify both --repo and --repo-prefix")
-			}
-
-			if codeownersFile == "" {
-				return fmt.Errorf("codeowners file path (--codeowner-file) is required")
-			}
-
-			// Read the CODEOWNERS file content
-			codeownersContent, err := readCodeownersFile(codeownersFile)
-			if err != nil {
-				return fmt.Errorf("failed to read CODEOWNERS file: %w", err)
-			}
-
-			// Get token from environment if not provided via flag
-			if token == "" {
-				token = os.Getenv("GITHUB_TOKEN")
-			}
-
-			if token == "" {
-				return fmt.Errorf("GitHub token (--token) is required or must be set in GITHUB_TOKEN environment variable")
-			}
-
-			// Determine if we're working with a user or organization
-			var owner string
-			var isUser bool
-			if username != "" {
-				owner = username
-				isUser = true
-			} else {
-				owner = org
-				isUser = false
-			}
-
-			// Create GitHub client and service with dependency injection
-			githubClient := repo.NewGitHubClient(token)
-			githubService := repo.NewGitHubServiceWithConcurrency(githubClient, concurrency)
-			ctx := context.Background()
-
-			if repoName != "" {
-				// Add CODEOWNERS to single repository
-				return handleSingleRepoCodeowners(ctx, githubService, owner, repoName, codeownersContent)
-			} else {
-				if repoName == "" && repoPrefix == "" {
-					if isUser {
-						log.Info("No repository or prefix specified, adding CODEOWNERS to all repositories for user")
-					} else {
-						log.Info("No repository or prefix specified, adding CODEOWNERS to all repositories in organization")
-					}
-				}
-				return handleMultipleReposCodeowners(ctx, githubService, owner, repoPrefix, isUser, codeownersContent)
-			}
+			return runCodeownersCommand(repoName, repoPrefix, org, username, token, concurrency, codeownersFile)
 		},
 	}
 
@@ -108,6 +52,81 @@ func newCodeownersCmd() *cobra.Command {
 	cmd.MarkFlagRequired("codeowner-file")
 
 	return cmd
+}
+
+func runCodeownersCommand(repoName, repoPrefix, org, username, token string, concurrency int, codeownersFile string) error {
+	log := logger.GetLogger()
+
+	// Validate input parameters
+	if err := validateCodeownersFlags(org, username, repoName, repoPrefix, codeownersFile); err != nil {
+		return err
+	}
+
+	// Read the CODEOWNERS file content
+	codeownersContent, err := readCodeownersFile(codeownersFile)
+	if err != nil {
+		return fmt.Errorf("failed to read CODEOWNERS file: %w", err)
+	}
+
+	// Get token from environment if not provided via flag
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+
+	if token == "" {
+		return fmt.Errorf("GitHub token (--token) is required or must be set in GITHUB_TOKEN environment variable")
+	}
+
+	// Determine if we're working with a user or organization
+	var owner string
+	var isUser bool
+	if username != "" {
+		owner = username
+		isUser = true
+	} else {
+		owner = org
+		isUser = false
+	}
+
+	// Create GitHub client and service with dependency injection
+	githubClient := repo.NewGitHubClient(token)
+	githubService := repo.NewGitHubServiceWithConcurrency(githubClient, concurrency)
+	ctx := context.Background()
+
+	if repoName != "" {
+		// Add CODEOWNERS to single repository
+		return handleSingleRepoCodeowners(ctx, githubService, owner, repoName, codeownersContent)
+	} else {
+		if repoName == "" && repoPrefix == "" {
+			if isUser {
+				log.Info("No repository or prefix specified, adding CODEOWNERS to all repositories for user")
+			} else {
+				log.Info("No repository or prefix specified, adding CODEOWNERS to all repositories in organization")
+			}
+		}
+		return handleMultipleReposCodeowners(ctx, githubService, owner, repoPrefix, isUser, codeownersContent)
+	}
+}
+
+func validateCodeownersFlags(org, username, repoName, repoPrefix, codeownersFile string) error {
+	// Validate input - must have either org or username, but not both
+	if org == "" && username == "" {
+		return fmt.Errorf("either organization (--org) or username (--username) is required")
+	}
+
+	if org != "" && username != "" {
+		return fmt.Errorf("cannot specify both --org and --username")
+	}
+
+	if repoName != "" && repoPrefix != "" {
+		return fmt.Errorf("cannot specify both --repo and --repo-prefix")
+	}
+
+	if codeownersFile == "" {
+		return fmt.Errorf("codeowners file path (--codeowner-file) is required")
+	}
+
+	return nil
 }
 
 func readCodeownersFile(filePath string) (string, error) {
@@ -159,7 +178,7 @@ func handleMultipleReposCodeowners(ctx context.Context, githubService repo.GitHu
 
 func displaySingleRepoCodeownersResult(owner, repoName string, success bool) {
 	fmt.Println("\n📋 CODEOWNERS Update Result:")
-	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println(strings.Repeat("-", shortSeparatorLength))
 
 	if success {
 		fmt.Printf("✅ Repository: %s/%s (SUCCESS)\n", owner, repoName)
@@ -169,7 +188,7 @@ func displaySingleRepoCodeownersResult(owner, repoName string, success bool) {
 		fmt.Printf("❌ Repository: %s/%s (FAILED)\n", owner, repoName)
 		fmt.Printf("❗ Failed to add/update CODEOWNERS file\n")
 	}
-	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println(strings.Repeat("-", shortSeparatorLength))
 }
 
 func displayMultipleReposCodeownersResults(owner, prefix string, successRepos, failedRepos []string, isUser bool) {
@@ -178,7 +197,7 @@ func displayMultipleReposCodeownersResults(owner, prefix string, successRepos, f
 	sort.Strings(failedRepos)
 
 	fmt.Println("\n📋 CODEOWNERS Update Results:")
-	fmt.Println(strings.Repeat("-", 70))
+	fmt.Println(strings.Repeat("-", longSeparatorLength))
 
 	// Display successful repositories
 	if len(successRepos) > 0 {
@@ -204,13 +223,13 @@ func displayMultipleReposCodeownersResults(owner, prefix string, successRepos, f
 		ownerType = "user"
 	}
 
-	fmt.Println("=" + strings.Repeat("=", 70))
+	fmt.Println("=" + strings.Repeat("=", longSeparatorLength))
 	if prefix == "" {
 		fmt.Printf("📊 SUMMARY for all repositories for %s '%s':\n", ownerType, owner)
 	} else {
 		fmt.Printf("📊 SUMMARY for repositories with prefix '%s' for %s '%s':\n", prefix, ownerType, owner)
 	}
-	fmt.Println(strings.Repeat("-", 70))
+	fmt.Println(strings.Repeat("-", longSeparatorLength))
 	fmt.Printf("📁 Total Repositories: %d\n", len(successRepos)+len(failedRepos))
 	fmt.Printf("✅ Successful Updates: %d\n", len(successRepos))
 	fmt.Printf("❌ Failed Updates: %d\n", len(failedRepos))
@@ -227,5 +246,5 @@ func displayMultipleReposCodeownersResults(owner, prefix string, successRepos, f
 	if len(failedRepos) == 0 {
 		fmt.Printf("🎉 All repositories successfully updated!\n")
 	}
-	fmt.Println("=" + strings.Repeat("=", 70))
+	fmt.Println("=" + strings.Repeat("=", longSeparatorLength))
 }
