@@ -52,7 +52,7 @@ linters:
     - copyloopvar     # Replace exportloopref
 
   # Remove deprecated linters
-  disable:
+  disable: []
     # Note: exportloopref and golint are automatically disabled as they are deprecated
 
 linters-settings:
