@@ -41,6 +41,7 @@ jobs:
 
     - name: 📊 Upload Coverage (Optional)
       uses: codecov/codecov-action@v4
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       with:
         file: ./coverage.out
         flags: unittests
