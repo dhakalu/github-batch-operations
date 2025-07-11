@@ -1,0 +1,180 @@
+# golangci-lint configuration file
+# See https://golangci-lint.run/usage/configuration/ for more options
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    - format: colored-line-number
+      path: stdout
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  enable:
+    - errcheck        # Check for unchecked errors
+    - gosimple        # Simplify code suggestions
+    - govet           # Go vet tool
+    - ineffassign     # Detect ineffectual assignments
+    - staticcheck     # Advanced static analysis
+    - typecheck       # Type checking
+    - unused          # Find unused constants, variables, functions and types
+    - gocyclo         # Cyclomatic complexity
+    - gofmt           # Format checking
+    - goimports       # Import formatting
+    - gocritic        # Go critic linter
+    - revive          # Drop-in replacement of golint
+    - stylecheck      # Replacement for golint
+    - unconvert       # Remove unnecessary type conversions
+    - gci             # Control golang package import order and make it always deterministic
+    - misspell        # Correct commonly misspelled English words
+    - lll             # Line length limit
+    - dupl            # Code clone detection
+    - gosec           # Security checks
+    - cyclop          # Package focused cyclomatic complexity
+    - godot           # Check if comments end in a period
+    - err113          # Check the errors handling expressions
+    - nestif          # Reports deeply nested if statements
+    - nlreturn        # Requires a new line before return
+    - wsl             # Whitespace linter
+    - varnamelen      # Variable name length
+    - funlen          # Function length
+    - mnd             # Magic number detector
+    - prealloc        # Find slice declarations that could potentially be preallocated
+    - usestdlibvars   # Use standard library variables
+    - testifylint     # Testify linter
+    - forcetypeassert # Force type assertion
+    - paralleltest    # Parallel test
+    - intrange        # Integer range
+    - copyloopvar     # Replace exportloopref
+
+  # Remove deprecated linters
+  disable:
+    - exportloopref   # Replaced by copyloopvar
+    - golint          # Deprecated, replaced by revive
+
+linters-settings:
+  gocyclo:
+    min-complexity: 20
+  
+  cyclop:
+    max-complexity: 15
+  
+  revive:
+    rules:
+      - name: exported
+        arguments: [checkPrivateReceivers]
+  
+  govet:
+    enable:
+      - shadow
+  
+  lll:
+    line-length: 140
+  
+  funlen:
+    lines: 80
+    statements: 50
+  
+  varnamelen:
+    min-name-length: 2
+    ignore-names:
+      - "i"
+      - "j"
+      - "k"
+      - "id"
+      - "ok"
+      - "w"
+      - "r"
+  
+  errcheck:
+    exclude-functions:
+      - "(*log/slog.Logger).Info"
+      - "(*log/slog.Logger).Error"
+      - "(*log/slog.Logger).Debug"
+      - "fmt.Print"
+      - "fmt.Printf"
+      - "fmt.Println"
+      - "(*github.com/spf13/cobra.Command).MarkFlagRequired"
+
+issues:
+  uniq-by-line: true
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    # Exclude many linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - cyclop
+        - errcheck
+        - dupl
+        - gosec
+        - funlen
+        - varnamelen
+        - err113
+        - mnd
+        - nestif
+        - nlreturn
+        - wsl
+        - testifylint
+        - forcetypeassert
+        - paralleltest
+        - godot
+        - prealloc
+        - usestdlibvars
+        - intrange
+        - gocritic
+        - exhaustruct
+    
+    # Allow fmt.Print functions in commands (they're for user output)
+    - path: internal/commands/
+      linters:
+        - errcheck
+      text: "Error return value of.*Print"
+    
+    # Allow long lines in help text and CLI descriptions
+    - linters:
+        - lll
+      source: "Long:.*\".*\""
+    
+    # Allow magic numbers in common contexts
+    - linters:
+        - mnd
+      text: "Magic number: 100"
+    
+    # Allow certain patterns in main/CLI code
+    - path: cmd/
+      linters:
+        - err113
+        - nestif
+    
+    # Allow certain patterns in commands for better CLI UX
+    - path: internal/commands/
+      linters:
+        - err113        # Dynamic errors are fine for CLI error messages
+        - nestif        # CLI flag validation can be nested
+        - nlreturn      # Return formatting is less critical in CLI
+        - wsl           # Whitespace rules less critical in CLI
+        - lll           # Long lines for help text
+        - forbidigo     # fmt.Print* is needed for output
+    
+    # Relax some rules for struct initialization
+    - text: "missing fields"
+      linters:
+        - exhaustruct
+    
+    # Allow some github API imports in repo package
+    - path: internal/repo/
+      linters:
+        - depguard
+      text: "github.com/google/go-github"
+    
+    # Allow cobra imports in commands
+    - path: internal/commands/
+      linters:
+        - depguard
+      text: "github.com/spf13/cobra"
