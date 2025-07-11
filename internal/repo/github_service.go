@@ -27,29 +27,30 @@ type GitHubClient interface {
 	//
 	// Parameters:
 	//   - ctx: Context for cancellation and timeout control
-	//   - org: GitHub organization name
-	//   - repoName: Name of the repository within the organization
+	//   - owner: GitHub organization or username
+	//   - repoName: Name of the repository within the organization or user account
 	//
 	// Returns:
 	//   - *IssueStats: Statistics containing issue counts for the repository
 	//   - error: Any error encountered during the API calls
-	GetIssueStatsForRepo(ctx context.Context, org, repoName string) (*IssueStats, error)
+	GetIssueStatsForRepo(ctx context.Context, owner, repoName string) (*IssueStats, error)
 
-	// GetRepositoriesWithPrefix retrieves all repositories in an organization that have names
+	// GetRepositoriesWithPrefix retrieves all repositories for an owner (organization or user) that have names
 	// starting with the specified prefix. If prefix is empty, it returns all repositories.
 	//
 	// Parameters:
 	//   - ctx: Context for cancellation and timeout control
-	//   - org: GitHub organization name
+	//   - owner: GitHub organization or username
 	//   - prefix: Repository name prefix to filter by (empty string matches all)
+	//   - isUser: true if owner is a user, false if it's an organization
 	//
 	// Returns:
 	//   - []*github.Repository: Slice of repositories matching the prefix
 	//   - error: Any error encountered during the API calls
-	GetRepositoriesWithPrefix(ctx context.Context, org, prefix string) ([]*github.Repository, error)
+	GetRepositoriesWithPrefix(ctx context.Context, owner, prefix string, isUser bool) ([]*github.Repository, error)
 
 	// GetIssueStatsForReposWithPrefix retrieves issue statistics for all repositories
-	// in an organization that match the specified prefix. This is a convenience method
+	// for an owner (organization or user) that match the specified prefix. This is a convenience method
 	// that combines GetRepositoriesWithPrefix and GetIssueStatsForRepo.
 	//
 	// If any individual repository fails to return stats, it logs the error and continues
@@ -57,13 +58,14 @@ type GitHubClient interface {
 	//
 	// Parameters:
 	//   - ctx: Context for cancellation and timeout control
-	//   - org: GitHub organization name
+	//   - owner: GitHub organization or username
 	//   - prefix: Repository name prefix to filter by (empty string matches all)
+	//   - isUser: true if owner is a user, false if it's an organization
 	//
 	// Returns:
 	//   - []*IssueStats: Slice of issue statistics for each matching repository
 	//   - error: Any error encountered during repository discovery (individual repo errors are logged)
-	GetIssueStatsForReposWithPrefix(ctx context.Context, org, prefix string) ([]*IssueStats, error)
+	GetIssueStatsForReposWithPrefix(ctx context.Context, owner, prefix string, isUser bool) ([]*IssueStats, error)
 }
 
 // gitHubService is the concrete implementation of GitHubClient
@@ -115,13 +117,13 @@ func NewGitHubClient(token string) *github.Client {
 }
 
 // GetIssueStatsForRepo gets issue statistics for a single repository
-func (s *gitHubService) GetIssueStatsForRepo(ctx context.Context, org, repoName string) (*IssueStats, error) {
-	s.log.Info("Fetching issue count", "org", org, "repo", repoName)
+func (s *gitHubService) GetIssueStatsForRepo(ctx context.Context, owner, repoName string) (*IssueStats, error) {
+	s.log.Info("Fetching issue count", "owner", owner, "repo", repoName)
 
 	// Verify repository exists
-	_, _, err := s.client.Repositories.Get(ctx, org, repoName)
+	_, _, err := s.client.Repositories.Get(ctx, owner, repoName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repository %s/%s: %w", org, repoName, err)
+		return nil, fmt.Errorf("failed to get repository %s/%s: %w", owner, repoName, err)
 	}
 
 	stats := &IssueStats{RepoName: repoName}
@@ -135,9 +137,9 @@ func (s *gitHubService) GetIssueStatsForRepo(ctx context.Context, org, repoName 
 	}
 
 	for {
-		issues, resp, err := s.client.Issues.ListByRepo(ctx, org, repoName, opts)
+		issues, resp, err := s.client.Issues.ListByRepo(ctx, owner, repoName, opts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list issues for %s/%s: %w", org, repoName, err)
+			return nil, fmt.Errorf("failed to list issues for %s/%s: %w", owner, repoName, err)
 		}
 
 		for _, issue := range issues {
@@ -161,42 +163,70 @@ func (s *gitHubService) GetIssueStatsForRepo(ctx context.Context, org, repoName 
 	return stats, nil
 }
 
-// GetRepositoriesWithPrefix gets all repositories in an organization that match a prefix
-func (s *gitHubService) GetRepositoriesWithPrefix(ctx context.Context, org, prefix string) ([]*github.Repository, error) {
-	s.log.Info("Fetching repositories with prefix", "org", org, "prefix", prefix)
-
-	opts := &github.RepositoryListByOrgOptions{
-		ListOptions: github.ListOptions{
-			PerPage: 100,
-		},
-	}
+// GetRepositoriesWithPrefix gets all repositories for an owner that match a prefix
+func (s *gitHubService) GetRepositoriesWithPrefix(ctx context.Context, owner, prefix string, isUser bool) ([]*github.Repository, error) {
+	s.log.Info("Fetching repositories with prefix", "owner", owner, "prefix", prefix, "isUser", isUser)
 
 	var matchingRepos []*github.Repository
 
-	for {
-		repos, resp, err := s.client.Repositories.ListByOrg(ctx, org, opts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list repositories for org %s: %w", org, err)
+	if isUser {
+		// List repositories for a user
+		opts := &github.RepositoryListByUserOptions{
+			ListOptions: github.ListOptions{
+				PerPage: 100,
+			},
 		}
 
-		for _, repo := range repos {
-			if strings.HasPrefix(repo.GetName(), prefix) {
-				matchingRepos = append(matchingRepos, repo)
+		for {
+			repos, resp, err := s.client.Repositories.ListByUser(ctx, owner, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list repositories for user %s: %w", owner, err)
 			}
+
+			for _, repo := range repos {
+				if strings.HasPrefix(repo.GetName(), prefix) {
+					matchingRepos = append(matchingRepos, repo)
+				}
+			}
+
+			if resp.NextPage == 0 {
+				break
+			}
+			opts.Page = resp.NextPage
+		}
+	} else {
+		// List repositories for an organization
+		opts := &github.RepositoryListByOrgOptions{
+			ListOptions: github.ListOptions{
+				PerPage: 100,
+			},
 		}
 
-		if resp.NextPage == 0 {
-			break
+		for {
+			repos, resp, err := s.client.Repositories.ListByOrg(ctx, owner, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list repositories for org %s: %w", owner, err)
+			}
+
+			for _, repo := range repos {
+				if strings.HasPrefix(repo.GetName(), prefix) {
+					matchingRepos = append(matchingRepos, repo)
+				}
+			}
+
+			if resp.NextPage == 0 {
+				break
+			}
+			opts.Page = resp.NextPage
 		}
-		opts.Page = resp.NextPage
 	}
 
 	return matchingRepos, nil
 }
 
 // GetIssueStatsForReposWithPrefix gets issue statistics for all repositories matching a prefix
-func (s *gitHubService) GetIssueStatsForReposWithPrefix(ctx context.Context, org, prefix string) ([]*IssueStats, error) {
-	repos, err := s.GetRepositoriesWithPrefix(ctx, org, prefix)
+func (s *gitHubService) GetIssueStatsForReposWithPrefix(ctx context.Context, owner, prefix string, isUser bool) ([]*IssueStats, error) {
+	repos, err := s.GetRepositoriesWithPrefix(ctx, owner, prefix, isUser)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +247,7 @@ func (s *gitHubService) GetIssueStatsForReposWithPrefix(ctx context.Context, org
 		sem <- struct{}{}
 		go func(repoName string) {
 			defer func() { <-sem }()
-			stats, err := s.GetIssueStatsForRepo(ctx, org, repoName)
+			stats, err := s.GetIssueStatsForRepo(ctx, owner, repoName)
 			if err != nil {
 				errChan <- fmt.Errorf("failed to get issues for repository %s: %w", repoName, err)
 				return

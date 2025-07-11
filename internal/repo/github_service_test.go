@@ -204,7 +204,7 @@ func TestGetRepositoriesWithPrefix_WithMockServer(t *testing.T) {
 			service := NewGitHubServiceWithLogger(client, 1, logger)
 
 			ctx := context.Background()
-			repos, err := service.GetRepositoriesWithPrefix(ctx, "testorg", tt.prefix)
+			repos, err := service.GetRepositoriesWithPrefix(ctx, "testorg", tt.prefix, false)
 
 			require.NoError(t, err)
 			assert.Equal(t, len(tt.expectedRepos), len(repos))
@@ -258,7 +258,7 @@ func TestGetIssueStatsForReposWithPrefix_WithMockServer(t *testing.T) {
 	service := NewGitHubServiceWithLogger(client, 2, logger) // Test concurrency
 
 	ctx := context.Background()
-	stats, err := service.GetIssueStatsForReposWithPrefix(ctx, "testorg", "test-")
+	stats, err := service.GetIssueStatsForReposWithPrefix(ctx, "testorg", "test-", false)
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(stats))
@@ -487,7 +487,7 @@ func TestGetIssueStatsForReposWithPrefix_NoRepos(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	stats, err := service.GetIssueStatsForReposWithPrefix(ctx, "testorg", "nonexistent-")
+	stats, err := service.GetIssueStatsForReposWithPrefix(ctx, "testorg", "nonexistent-", false)
 
 	assert.NoError(t, err)
 	assert.Nil(t, stats)
@@ -512,7 +512,7 @@ func (m *mockGitHubService) GetIssueStatsForRepo(ctx context.Context, org, repoN
 	}, nil
 }
 
-func (m *mockGitHubService) GetRepositoriesWithPrefix(ctx context.Context, org, prefix string) ([]*github.Repository, error) {
+func (m *mockGitHubService) GetRepositoriesWithPrefix(ctx context.Context, owner, prefix string, isUser bool) ([]*github.Repository, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
@@ -524,12 +524,12 @@ func (m *mockGitHubService) GetRepositoriesWithPrefix(ctx context.Context, org, 
 	}, nil
 }
 
-func (m *mockGitHubService) GetIssueStatsForReposWithPrefix(ctx context.Context, org, prefix string) ([]*IssueStats, error) {
+func (m *mockGitHubService) GetIssueStatsForReposWithPrefix(ctx context.Context, owner, prefix string, isUser bool) ([]*IssueStats, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
 
-	repos, err := m.GetRepositoriesWithPrefix(ctx, org, prefix)
+	repos, err := m.GetRepositoriesWithPrefix(ctx, owner, prefix, isUser)
 	if err != nil {
 		return nil, err
 	}

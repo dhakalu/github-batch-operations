@@ -5,9 +5,13 @@ Go Repository Manager is a command-line interface (CLI) tool designed to help de
 ## Features
 
 - **Issue Count Analysis**: Get issue counts from GitHub repositories individually or by prefix
+- **Visual Repository Status**: Clear visual indicators (✅/❌) to quickly identify clean vs problematic repositories
+- **Smart Sorting**: Repositories are sorted with clean ones first, then by issue count for easy prioritization
 - Count open, closed, and total issues across repositories
-- Support for organization-wide repository analysis
+- Support for both organization and user repository analysis
+- **Enhanced Reporting**: Rich summary statistics including clean repository percentage
 - GitHub API integration with token-based authentication
+- Configurable concurrency for processing multiple repositories
 - Utility functions for logging and error handling
 
 ## Installation
@@ -51,39 +55,62 @@ To use the Go Repository Manager, run the following command:
 
 #### `get-issue-count`
 
-Get the count of issues from GitHub repositories. This command supports three modes:
+Get the count of issues from GitHub repositories. This command supports three modes and can work with both organizations and user accounts:
 
 **Single Repository Mode:**
 ```bash
+# For organization repositories
 ./bin/go-repo-manager get-issue-count --org myorg --repo myrepo
+
+# For user repositories
+./bin/go-repo-manager get-issue-count --username myusername --repo myrepo
 ```
 
 **Repository Prefix Mode:**
 ```bash
+# For organization repositories
 ./bin/go-repo-manager get-issue-count --org myorg --repo-prefix api-
+
+# For user repositories
+./bin/go-repo-manager get-issue-count --username myusername --repo-prefix api-
 ```
 
 **All Repositories Mode:**
 ```bash
+# For organization repositories
 ./bin/go-repo-manager get-issue-count --org myorg
+
+# For user repositories
+./bin/go-repo-manager get-issue-count --username myusername
 ```
 
 **Flags:**
-- `--org string`: GitHub organization name (required)
+- `--org string`: GitHub organization name (mutually exclusive with --username)
+- `--username string`: GitHub username (mutually exclusive with --org)
 - `--repo string`: Specific repository name (optional)
 - `--repo-prefix string`: Repository name prefix to filter repositories (optional)
 - `--token string`: GitHub personal access token (optional, can also be set via GITHUB_TOKEN env var)
+- `--concurrency int`: Maximum number of concurrent workers for processing repositories (default: 1)
 
 **Examples:**
 ```bash
-# Get issue count for a specific repository
+# Get issue count for a specific repository in an organization
 ./bin/go-repo-manager get-issue-count --org kubernetes --repo kubernetes
 
-# Get issue count for all repositories starting with "api-"
+# Get issue count for a specific repository for a user
+./bin/go-repo-manager get-issue-count --username octocat --repo Hello-World
+
+# Get issue count for all repositories starting with "api-" in an organization
 ./bin/go-repo-manager get-issue-count --org myorg --repo-prefix api-
+
+# Get issue count for all repositories starting with "my-" for a user
+./bin/go-repo-manager get-issue-count --username myusername --repo-prefix my-
 
 # Get issue count for ALL repositories in the organization
 ./bin/go-repo-manager get-issue-count --org myorg
+
+# Get issue count for ALL repositories for a user
+./bin/go-repo-manager get-issue-count --username myusername
 
 # Use GitHub token for higher rate limits
 export GITHUB_TOKEN=your_personal_access_token
@@ -91,11 +118,45 @@ export GITHUB_TOKEN=your_personal_access_token
 ```
 
 **Output:**
-The command provides detailed information including:
-- Total issues per repository
-- Open issues count
-- Closed issues count
-- Summary statistics for prefix mode
+The command provides a visual, easy-to-read report with:
+- ✅ Checkmarks for repositories without issues (clean repositories)
+- ❌ Cross marks for repositories with issues
+- Sorted display: clean repositories first, then repositories with issues
+- Detailed breakdown of total, open, and closed issues per repository
+- Summary statistics including clean repository percentage
+- Enhanced formatting with emojis and visual separators
+
+**Sample Output:**
+```
+📋 Repository Analysis:
+----------------------------------------------------------------------
+✅ Repository: myorg/clean-repo (CLEAN)
+📊 Total Issues: 0
+
+❌ Repository: myorg/busy-repo (HAS ISSUES)
+📊 Total Issues: 15
+🔓 Open Issues: 8
+✔️  Closed Issues: 7
+
+======================================================================
+📊 SUMMARY for all repositories for organization 'myorg':
+----------------------------------------------------------------------
+📁 Total Repositories: 10
+✅ Clean Repositories (no issues): 7
+❌ Repositories with issues: 3
+----------------------------------------------------------------------
+🐛 Total Issues across all repos: 45
+🔓 Total Open Issues: 22
+✔️  Total Closed Issues: 23
+📈 Clean Repository Rate: 70.0%
+======================================================================
+```
+
+The enhanced output makes it easy to quickly identify:
+- Which repositories have issues and which are clean
+- Repositories that need attention (those with issues are clearly marked)
+- Overall repository health with percentage statistics
+- Prioritized view: clean repositories are shown first
 
 **Note:** The command excludes pull requests and only counts actual issues.
 
