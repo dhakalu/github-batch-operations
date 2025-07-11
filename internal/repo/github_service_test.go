@@ -28,11 +28,6 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-// Helper function to create int pointers
-func intPtr(i int) *int {
-	return &i
-}
-
 func TestNewGitHubService(t *testing.T) {
 	client := github.NewClient(nil)
 	service := NewGitHubService(client)
@@ -512,7 +507,8 @@ func (m *mockGitHubService) GetIssueStatsForRepo(ctx context.Context, org, repoN
 	}, nil
 }
 
-func (m *mockGitHubService) GetRepositoriesWithPrefix(ctx context.Context, owner, prefix string, isUser bool) ([]*github.Repository, error) {
+func (m *mockGitHubService) GetRepositoriesWithPrefix(ctx context.Context, owner, prefix string,
+	isUser bool) ([]*github.Repository, error) {
 	if m.shouldError {
 		return nil, errors.New(m.errorMsg)
 	}
@@ -550,7 +546,8 @@ func (m *mockGitHubService) CreateOrUpdateFile(ctx context.Context, owner, repoN
 	return nil
 }
 
-func (m *mockGitHubService) AddCodeownersToReposWithPrefix(ctx context.Context, owner, prefix string, isUser bool, codeownersContent string) ([]string, []string, error) {
+func (m *mockGitHubService) AddCodeownersToReposWithPrefix(ctx context.Context, owner, prefix string,
+	isUser bool, codeownersContent string) ([]string, []string, error) {
 	if m.shouldError {
 		return nil, nil, errors.New(m.errorMsg)
 	}

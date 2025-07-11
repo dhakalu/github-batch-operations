@@ -57,7 +57,7 @@ test-coverage: ## Run tests with coverage report
 format: ## Format Go code using gofmt and goimports
 	@echo "Formatting Go code..."
 	@gofmt -s -w .
-	@goimports -w .
+	@goimports -w . 2>/dev/null || "$(shell go env GOPATH)/bin/goimports.exe" -w .
 	@echo "Code formatted."
 
 
@@ -71,12 +71,12 @@ check-linter-deps: ## Check if required tools are installed
 # Run linter
 lint: ## Run golangci-lint
 	@echo "Running linter..."
-	@golangci-lint run 2>/dev/null || $(shell go env GOPATH)/bin/golangci-lint.exe run
+	@golangci-lint run 2>/dev/null || "$(shell go env GOPATH)/bin/golangci-lint.exe" run
 
 # Fix linter issues automatically where possible
 lint-fix: ## Fix linter issues automatically
 	@echo "Running linter with auto-fix..."
-	@golangci-lint run --fix 2>/dev/null || $(shell go env GOPATH)/bin/golangci-lint.exe run --fix
+	@golangci-lint run --fix 2>/dev/null || "$(shell go env GOPATH)/bin/golangci-lint.exe" run --fix
 
 # Install golangci-lint
 install-linter: ## Install golangci-lint
@@ -114,7 +114,7 @@ ci: deps ## Run CI workflow (deps, lint, test)
 	@echo "Checking if code is formatted..."
 	@test -z "$$(gofmt -l .)" || (echo "Code is not formatted. Run 'make format'" && exit 1)
 	@echo "Running linter..."
-	@golangci-lint run 2>/dev/null || $(shell go env GOPATH)/bin/golangci-lint.exe run
+	@golangci-lint run 2>/dev/null || "$(shell go env GOPATH)/bin/golangci-lint.exe" run
 	@echo "Running tests..."
 	@go test -v ./...
 	@echo "CI workflow completed successfully!"

@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"go-repo-manager/internal/logger"
 	"go-repo-manager/internal/repo"
-
-	"github.com/spf13/cobra"
 )
 
 func newGetIssueCountCmd() *cobra.Command {
@@ -124,7 +124,7 @@ func handleMultipleRepos(ctx context.Context, githubService repo.GitHubClient, o
 
 func displaySingleRepoStats(owner string, stats *repo.IssueStats) {
 	fmt.Println("\n📋 Repository Analysis:")
-	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println(strings.Repeat("-", shortSeparatorLength))
 
 	// Determine status indicator based on whether repo has issues
 	statusIcon := "❌" // Cross for repos with issues
@@ -142,7 +142,7 @@ func displaySingleRepoStats(owner string, stats *repo.IssueStats) {
 	} else {
 		fmt.Printf("🎉 This repository has no issues!\n")
 	}
-	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println(strings.Repeat("-", shortSeparatorLength))
 }
 
 func displayMultipleReposStats(owner, prefix string, allStats []*repo.IssueStats, isUser bool) {
@@ -164,7 +164,7 @@ func displayMultipleReposStats(owner, prefix string, allStats []*repo.IssueStats
 
 	// Display individual repository stats
 	fmt.Println("\n📋 Repository Analysis:")
-	fmt.Println(strings.Repeat("-", 70))
+	fmt.Println(strings.Repeat("-", longSeparatorLength))
 
 	for _, stats := range allStats {
 		// Determine status indicator based on whether repo has issues
@@ -197,19 +197,19 @@ func displayMultipleReposStats(owner, prefix string, allStats []*repo.IssueStats
 		ownerType = "user"
 	}
 
-	fmt.Println("=" + strings.Repeat("=", 70))
+	fmt.Println("=" + strings.Repeat("=", longSeparatorLength))
 	if prefix == "" {
 		fmt.Printf("📊 SUMMARY for all repositories for %s '%s':\n", ownerType, owner)
 	} else {
 		fmt.Printf("📊 SUMMARY for repositories with prefix '%s' for %s '%s':\n", prefix, ownerType, owner)
 	}
-	fmt.Println(strings.Repeat("-", 70))
+	fmt.Println(strings.Repeat("-", longSeparatorLength))
 	fmt.Printf("📁 Total Repositories: %d\n", len(allStats))
 	fmt.Printf("✅ Clean Repositories (no issues): %d\n", reposWithoutIssues)
 	fmt.Printf("❌ Repositories with issues: %d\n", reposWithIssues)
 
 	if totalIssuesAcrossRepos > 0 {
-		fmt.Println(strings.Repeat("-", 70))
+		fmt.Println(strings.Repeat("-", longSeparatorLength))
 		fmt.Printf("🐛 Total Issues across all repos: %d\n", totalIssuesAcrossRepos)
 		fmt.Printf("🔓 Total Open Issues: %d\n", totalOpenIssues)
 		fmt.Printf("✔️  Total Closed Issues: %d\n", totalClosedIssues)
@@ -220,5 +220,5 @@ func displayMultipleReposStats(owner, prefix string, allStats []*repo.IssueStats
 	} else {
 		fmt.Printf("🎉 Congratulations! All repositories are clean (no issues)!\n")
 	}
-	fmt.Println("=" + strings.Repeat("=", 70))
+	fmt.Println("=" + strings.Repeat("=", longSeparatorLength))
 }

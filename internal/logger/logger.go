@@ -7,10 +7,10 @@ import (
 	"github.com/MatusOllah/slogcolor"
 )
 
-// Global logger instance
+// Global logger instance.
 var Logger *slog.Logger
 
-// Setup initializes the logger with colored output using slogcolor
+// Setup initializes the logger with colored output using slogcolor.
 func Setup() {
 	// Initialize logger with colored output from slogcolor
 	opts := &slogcolor.Options{
@@ -26,12 +26,12 @@ func Setup() {
 	slog.SetDefault(Logger)
 }
 
-// GetLogger returns the initialized logger instance
-// This function ensures the Logger is properly initialized before use
+// This function ensures the Logger is properly initialized before use.
 func GetLogger() *slog.Logger {
 	// If Logger is nil, initialize it
 	if Logger == nil {
 		Setup()
 	}
+
 	return Logger
 }
