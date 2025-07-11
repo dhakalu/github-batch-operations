@@ -1,0 +1,221 @@
+name: 🚀 CI Pipeline
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: 🧪 Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: 📦 Cache Go Modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: 🔄 Download Dependencies
+      run: go mod download
+      
+    - name: 🧪 Run Tests
+      run: go test -v -race -coverprofile=coverage.out ./...
+      
+    - name: 📈 Display Coverage
+      run: go tool cover -func=coverage.out
+
+    - name: 📊 Upload Coverage (Optional)
+      uses: codecov/codecov-action@v4
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
+      continue-on-error: true
+
+  lint:
+    name: 🔍 Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: 📦 Cache Go Modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: 🔄 Download Dependencies
+      run: go mod download
+      
+    - name: 🔍 Run Linter
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=5m
+
+  build:
+    name: 🏗️ Build Application
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: 📦 Cache Go Modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: 🔄 Download Dependencies
+      run: go mod download
+      
+    - name: 🏗️ Build Binary
+      run: |
+        go build -v -o go-repo-manager ./cmd/main.go
+        
+    - name: ✅ Verify Binary
+      run: |
+        ./go-repo-manager --version || echo "Version flag not implemented yet"
+        ./go-repo-manager --help
+        
+    - name: 📤 Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: go-repo-manager-${{ github.sha }}
+        path: go-repo-manager
+        retention-days: 7
+
+  release:
+    name: 🚀 Create Release
+    runs-on: ubuntu-latest
+    needs: [test, lint, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: 📥 Download Build Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: go-repo-manager-${{ github.sha }}
+        path: ./artifacts
+        
+    - name: 🏷️ Generate Version Tag
+      id: version
+      run: |
+        # Generate version based on date and short commit hash
+        VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
+        
+    - name: 📦 Create Release Archive
+      run: |
+        mkdir -p release
+        chmod +x ./artifacts/go-repo-manager
+        tar -czf release/go-repo-manager-linux-amd64.tar.gz -C artifacts go-repo-manager
+        
+    - name: 📝 Generate Release Notes
+      id: release_notes
+      run: |
+        # Get commits since last tag (or all commits if no tags)
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -z "$LAST_TAG" ]; then
+          COMMITS=$(git log --oneline --no-merges | head -20)
+        else
+          COMMITS=$(git log --oneline --no-merges ${LAST_TAG}..HEAD)
+        fi
+        
+        # Create release notes
+        cat > release_notes.md << EOF
+        ## 🚀 Release ${{ steps.version.outputs.version }}
+        
+        ### ✨ What's Changed
+        \`\`\`
+        $COMMITS
+        \`\`\`
+        
+        ### 📦 Downloads
+        - **Linux AMD64**: go-repo-manager-linux-amd64.tar.gz
+        
+        ### 🔧 Installation
+        \`\`\`bash
+        # Download and extract
+        wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/go-repo-manager-linux-amd64.tar.gz
+        tar -xzf go-repo-manager-linux-amd64.tar.gz
+        chmod +x go-repo-manager
+        ./go-repo-manager --help
+        \`\`\`
+        
+        ---
+        **Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG:-$(git rev-list --max-parents=0 HEAD)}...${{ steps.version.outputs.version }}
+        EOF
+        
+    - name: 🎉 Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        release_name: 🚀 Release ${{ steps.version.outputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        
+    - name: 📤 Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release/go-repo-manager-linux-amd64.tar.gz
+        asset_name: go-repo-manager-linux-amd64.tar.gz
+        asset_content_type: application/gzip
