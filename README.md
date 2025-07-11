@@ -5,11 +5,13 @@ Go Repository Manager is a command-line interface (CLI) tool designed to help de
 ## Features
 
 - **Issue Count Analysis**: Get issue counts from GitHub repositories individually or by prefix
+- **CODEOWNERS Management**: Add or update CODEOWNERS files across multiple repositories efficiently
 - **Visual Repository Status**: Clear visual indicators (✅/❌) to quickly identify clean vs problematic repositories
 - **Smart Sorting**: Repositories are sorted with clean ones first, then by issue count for easy prioritization
+- **Batch Operations**: Process multiple repositories concurrently with configurable concurrency
 - Count open, closed, and total issues across repositories
 - Support for both organization and user repository analysis
-- **Enhanced Reporting**: Rich summary statistics including clean repository percentage
+- **Enhanced Reporting**: Rich summary statistics including success rates and clean repository percentages
 - GitHub API integration with token-based authentication
 - Configurable concurrency for processing multiple repositories
 - Utility functions for logging and error handling
@@ -159,6 +161,93 @@ The enhanced output makes it easy to quickly identify:
 - Prioritized view: clean repositories are shown first
 
 **Note:** The command excludes pull requests and only counts actual issues.
+
+#### `codeowners`
+
+Add or update CODEOWNERS files in GitHub repositories. This command supports the same modes as `get-issue-count` and can work with both organizations and user accounts:
+
+**Single Repository Mode:**
+```bash
+# For organization repositories
+./bin/go-repo-manager codeowners --org myorg --repo myrepo --codeowner-file ./CODEOWNERS
+
+# For user repositories
+./bin/go-repo-manager codeowners --username myusername --repo myrepo --codeowner-file ./CODEOWNERS
+```
+
+**Repository Prefix Mode:**
+```bash
+# For organization repositories
+./bin/go-repo-manager codeowners --org myorg --repo-prefix api- --codeowner-file ./CODEOWNERS
+
+# For user repositories
+./bin/go-repo-manager codeowners --username myusername --repo-prefix my- --codeowner-file ./CODEOWNERS
+```
+
+**All Repositories Mode:**
+```bash
+# For organization repositories
+./bin/go-repo-manager codeowners --org myorg --codeowner-file ./CODEOWNERS
+
+# For user repositories
+./bin/go-repo-manager codeowners --username myusername --codeowner-file ./CODEOWNERS
+```
+
+**Flags:**
+- `--org string`: GitHub organization name (mutually exclusive with --username)
+- `--username string`: GitHub username (mutually exclusive with --org)
+- `--repo string`: Specific repository name (optional)
+- `--repo-prefix string`: Repository name prefix to filter repositories (optional)
+- `--codeowner-file string`: Path to the CODEOWNERS file to add to repositories (required)
+- `--token string`: GitHub personal access token (optional, can also be set via GITHUB_TOKEN env var)
+- `--concurrency int`: Maximum number of concurrent workers for processing repositories (default: 1)
+
+**Examples:**
+```bash
+# Add CODEOWNERS to a specific repository in an organization
+./bin/go-repo-manager codeowners --org myorg --repo myrepo --codeowner-file ./team-CODEOWNERS
+
+# Add CODEOWNERS to all repositories starting with "api-" in an organization
+./bin/go-repo-manager codeowners --org myorg --repo-prefix api- --codeowner-file ./CODEOWNERS
+
+# Add CODEOWNERS to ALL repositories for a user
+./bin/go-repo-manager codeowners --username myusername --codeowner-file ./CODEOWNERS
+
+# Use concurrency for faster processing of multiple repositories
+./bin/go-repo-manager codeowners --org myorg --repo-prefix service- --codeowner-file ./CODEOWNERS --concurrency 5
+```
+
+**Sample Output:**
+```
+📋 CODEOWNERS Update Results:
+----------------------------------------------------------------------
+✅ SUCCESSFUL UPDATES (8 repositories):
+  ✅ myorg/api-service
+  ✅ myorg/api-gateway
+  ✅ myorg/api-auth
+
+❌ FAILED UPDATES (1 repositories):
+  ❌ myorg/archived-repo
+
+======================================================================
+📊 SUMMARY for repositories with prefix 'api-' for organization 'myorg':
+----------------------------------------------------------------------
+📁 Total Repositories: 9
+✅ Successful Updates: 8
+❌ Failed Updates: 1
+📈 Success Rate: 88.9%
+📍 CODEOWNERS files added/updated at: .github/CODEOWNERS
+======================================================================
+```
+
+**Features:**
+- **Smart File Management**: Automatically creates `.github/` directory if it doesn't exist
+- **Update Existing Files**: Updates existing CODEOWNERS files or creates new ones
+- **Batch Processing**: Process multiple repositories concurrently for efficiency
+- **Detailed Reporting**: Visual feedback showing success/failure for each repository
+- **Safe Operations**: Each repository operation is independent - failures don't affect other repositories
+
+**Note:** The command creates or updates the CODEOWNERS file at `.github/CODEOWNERS` in each repository with a descriptive commit message.
 
 ### Authentication
 

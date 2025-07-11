@@ -21,4 +21,5 @@ func Execute() {
 func init() {
 	// Initialize subcommands here
 	rootCmd.AddCommand(newGetIssueCountCmd())
+	rootCmd.AddCommand(newCodeownersCmd())
 }
